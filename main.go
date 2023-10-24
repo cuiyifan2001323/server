@@ -1,14 +1,20 @@
 package main
 
 import (
+	"fmt"
+	"gin-study/repository"
+	"gin-study/repository/dao"
 	"gin-study/service"
 	"gin-study/web"
+	"gin-study/web/middleware"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"strings"
 )
-
-//var DB *gorm.DB
 
 func main() {
 	g := gin.Default()
@@ -22,25 +28,27 @@ func main() {
 			return strings.HasPrefix(origin, "http://localhost")
 		},
 	}))
-	//dsn := "root:cyf2001323@tcp(127.0.0.1:3306)/study?charset=utf8mb4&parseTime=True&loc=Local"
-	//db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	//DB = db
-	//if err != nil {
-	//	fmt.Println(err)
-	//}
-	sve := new(service.UserService)
+	store := cookie.NewStore([]byte("secret"))
+	g.Use(sessions.Sessions("ssid", store))
+	loginMiddleware := &middleware.LoginMiddlewareBuilder{}
+	g.Use(loginMiddleware.CheckLogin())
+	db := InitDb()
+	InitUserHandle(db, g)
+	g.Run(":8080")
+}
+func InitDb() *gorm.DB {
+	dsn := "root:cyf2001323@tcp(127.0.0.1:13316)/study?charset=utf8mb4&parseTime=True&loc=Local"
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		fmt.Println(err)
+		panic("数据库连接失败")
+	}
+	return db
+}
+func InitUserHandle(db *gorm.DB, g *gin.Engine) {
+	userDao := dao.NewUserDao(db)
+	userRepo := repository.NewUserRepository(userDao)
+	sve := service.NewUserService(userRepo)
 	userRouter := web.NewUserHandle(sve)
 	userRouter.RegisterRoutes(g)
-	g.Run(":8080")
-
-	//// 路径参数
-	//g.GET("/users/:id", func(ctx *gin.Context) {
-	//	id := ctx.Param("id")
-	//	ctx.JSON(http.StatusOK, id)
-	//})
-	//// 通配符
-	//g.GET("/file/*.html", func(context *gin.Context) {
-	//	view := context.Param(".html")
-	//	context.JSON(200, view)
-	//})
 }

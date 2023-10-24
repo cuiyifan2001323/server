@@ -1,12 +1,15 @@
 package web
 
 import (
+	"errors"
 	"gin-study/common"
 	"gin-study/domain"
 	"gin-study/service"
 	regexp "github.com/dlclark/regexp2"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"strconv"
+	"time"
 )
 
 const (
@@ -20,6 +23,12 @@ type HandleUser struct {
 	svc      *service.UserService
 }
 
+var (
+	EmailConflictErr    = service.EmailConflictErr
+	PasswordOrMobileErr = service.PasswordOrMobileErr
+	//ErrUserNotFound  = service.ErrUserNotFound
+)
+
 func NewUserHandle(svc *service.UserService) *HandleUser {
 	return &HandleUser{
 		emailReg: regexp.MustCompile(emailReg, regexp.None),
@@ -31,6 +40,7 @@ func (h *HandleUser) RegisterRoutes(server *gin.Engine) {
 	gr := server.Group("/user")
 	gr.POST("/signup", h.SignUp)
 	gr.POST("/login", h.Login)
+	gr.GET("/info", h.Info)
 }
 
 func (h HandleUser) SignUp(ctx *gin.Context) {
@@ -43,15 +53,55 @@ func (h HandleUser) SignUp(ctx *gin.Context) {
 		ctx.JSON(200, result)
 		return
 	}
-	h.svc.Signup(ctx, domain.User{
+	err = h.svc.Signup(ctx, domain.User{
 		Email:    params.Email,
 		Mobile:   params.Mobile,
 		Password: params.Password,
 	})
-	result := common.Success("注册成功", 200)
+	var result common.Result
+	switch {
+	case err == nil:
+		result = common.Success("注册成功", 200)
+	case errors.Is(err, EmailConflictErr):
+		result = common.Err(EmailConflictErr.Error(), 500)
+	default:
+		result = common.Err("系统错误", 500)
+	}
 	ctx.JSON(200, result)
 }
 
-func (h HandleUser) Login(server *gin.Context) {
+func (h HandleUser) Login(ctx *gin.Context) {
+	params := new(domain.User)
+	err := ctx.ShouldBind(params)
+	if err != nil {
+		result := common.Err("邮箱格式或者手机号格式不正确", 500)
+		ctx.JSON(200, result)
+		return
+	}
+	u, err := h.svc.Login(ctx, params)
+	var result common.Result
+	switch {
+	case err == nil:
+		sess := sessions.Default(ctx)
+		sess.Set("id", u.Id)
+		sess.Options(sessions.Options{
+			// 15分钟
+			MaxAge: int(time.Minute * 60 * 15),
+		})
+		err = sess.Save()
+		if err != nil {
+			result = common.Err("系统错误", 500)
+			break
 
+		}
+		result = common.Success("登录成功", 200)
+	case errors.Is(err, PasswordOrMobileErr):
+		result = common.Err("密码或邮箱不正确", 500)
+	default:
+		result = common.Err("系统错误", 500)
+	}
+	ctx.JSON(200, result)
+}
+func (h HandleUser) Info(ctx *gin.Context) {
+	ctx.JSON(200, "成功")
 }
