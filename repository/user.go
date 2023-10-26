@@ -4,6 +4,7 @@ import (
 	"context"
 	"gin-study/domain"
 	"gin-study/repository/dao"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -35,6 +36,20 @@ func (repo *UserRepository) FindByEmail(ctx context.Context, email string) (*dom
 		return &domain.User{}, err
 	}
 	return toDomainUser(u), nil
+}
+
+func (repo *UserRepository) FindById(ctx *gin.Context, id int64) (*domain.User, error) {
+	u, err := repo.dao.FindById(ctx, id)
+	if err != nil {
+		return &domain.User{}, err
+	}
+	return toDomainUser(u), nil
+}
+
+func (repo *UserRepository) Update(ctx *gin.Context, info *domain.User) error {
+	// 修改用户信息的时候不能修改email
+	info.Email = ""
+	return repo.dao.Update(ctx, info)
 }
 func toDomainUser(u dao.User) *domain.User {
 

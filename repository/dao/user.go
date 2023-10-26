@@ -3,6 +3,9 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
+	"gin-study/domain"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -46,4 +49,15 @@ func (dao *UserDAO) FindByEmail(ctx context.Context, email string) (User, error)
 	var user User
 	err := dao.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
 	return user, err
+}
+
+func (dao *UserDAO) FindById(ctx *gin.Context, id int64) (User, error) {
+	var user User
+	err := dao.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+	return user, err
+}
+
+func (dao *UserDAO) Update(ctx *gin.Context, info *domain.User) error {
+	fmt.Println(info)
+	return dao.db.WithContext(ctx).Where("id = ?", info.Id).Updates(info).Error
 }

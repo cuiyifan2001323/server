@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gin-study/domain"
 	"gin-study/repository"
+	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -29,7 +30,7 @@ func NewUserService(repo *repository.UserRepository) *UserService {
 }
 func (s UserService) Signup(ctx context.Context, u domain.User) error {
 	user, err := s.repo.FindByEmail(ctx, u.Email)
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 	// 如果查询到了表示邮箱已存在了，不能在注册
@@ -58,4 +59,16 @@ func (s UserService) Login(ctx context.Context, user *domain.User) (*domain.User
 		return u, PasswordOrMobileErr
 	}
 	return u, nil
+}
+
+func (s UserService) Edit(ctx *gin.Context, userInfo *domain.User) error {
+	_, err := s.repo.FindById(ctx, userInfo.Id)
+	if err != nil {
+		return err
+	}
+	return s.repo.Update(ctx, userInfo)
+}
+
+func (s UserService) GetUserInfo(ctx *gin.Context, id int64) (*domain.User, error) {
+	return s.repo.FindById(ctx, id)
 }
